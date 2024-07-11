@@ -28,6 +28,7 @@ import { healthcheckWith } from './api/healthcheck.js'
 import { readResultsWith } from './api/readResults.js'
 import { dryRunWith } from './api/dryRun.js'
 import { statsWith } from './api/perf.js'
+import { existsSync } from 'node:fs'
 
 export { createLogger } from './logger.js'
 export { domainConfigSchema, positiveIntSchema } from './model.js'
@@ -118,8 +119,7 @@ export const createApis = async (ctx) => {
 
   const writeProcessMemoryFile = AoProcessClient.writeProcessMemoryFileWith({
     DIR: ctx.PROCESS_MEMORY_CACHE_FILE_DIR,
-    writeFile,
-    readFile
+    writeFile
   })
 
   ctx.logger('Process Snapshot creation is set to "%s"', !ctx.DISABLE_PROCESS_CHECKPOINT_CREATION)
@@ -142,16 +142,11 @@ export const createApis = async (ctx) => {
     hashWasmMemory: WasmClient.hashWasmMemory,
     buildAndSignDataItem: ArweaveClient.buildAndSignDataItemWith({ WALLET: ctx.WALLET }),
     uploadDataItem: ArweaveClient.uploadDataItemWith({ UPLOADER_URL: ctx.UPLOADER_URL, fetch: ctx.fetch, logger: ctx.logger }),
-    writeCheckpointFile: AoProcessClient.writeCheckpointFileWith({
-      DIR: ctx.PROCESS_CHECKPOINT_FILE_DIRECTORY,
-      writeFile
-    }),
     writeCheckpointRecord: AoProcessClient.writeCheckpointRecordWith({
       db: sqlite
     }),
-    writeCacheBackupFile: AoProcessClient.writeCacheBackupFileWith({
-      writeFile,
-      readFile
+    writeFileRecord: AoProcessClient.writeFileRecordWith({
+      db: sqlite
     }),
     writeProcessMemoryFile,
     logger: ctx.logger,
@@ -167,9 +162,8 @@ export const createApis = async (ctx) => {
     logger: ctx.logger,
     setTimeout: (...args) => lt.setTimeout(...args),
     clearTimeout: (...args) => lt.clearTimeout(...args),
-    writeCacheBackupFile: AoProcessClient.writeCacheBackupFileWith({
-      writeFile,
-      readFile
+    writeFileRecord: AoProcessClient.writeFileRecordWith({
+      db: sqlite
     })
   })
 
@@ -213,11 +207,7 @@ export const createApis = async (ctx) => {
       cache: wasmMemoryCache,
       loadTransactionData: ArweaveClient.loadTransactionDataWith({ fetch: ctx.fetch, ARWEAVE_URL: ctx.ARWEAVE_URL, logger }),
       readProcessMemoryFile,
-      findCheckpointFileBefore: AoProcessClient.findCheckpointFileBeforeWith({ readFile }),
-      readCheckpointFile: AoProcessClient.readCheckpointFileWith({
-        DIR: ctx.PROCESS_CHECKPOINT_FILE_DIRECTORY,
-        readFile
-      }),
+      findCheckpointFileBefore: AoProcessClient.findCheckpointFileBeforeWith({ db: sqlite }),
       findCheckpointRecordBefore: AoProcessClient.findCheckpointRecordBeforeWith({
         db: sqlite
       }),
@@ -227,6 +217,8 @@ export const createApis = async (ctx) => {
       PROCESS_IGNORE_ARWEAVE_CHECKPOINTS: ctx.PROCESS_IGNORE_ARWEAVE_CHECKPOINTS,
       IGNORE_ARWEAVE_CHECKPOINTS: ctx.IGNORE_ARWEAVE_CHECKPOINTS,
       PROCESS_CHECKPOINT_TRUSTED_OWNERS: ctx.PROCESS_CHECKPOINT_TRUSTED_OWNERS,
+      DIR: ctx.PROCESS_MEMORY_CACHE_FILE_DIR,
+      fileExists: existsSync,
       logger
     }),
     saveLatestProcessMemory: AoProcessClient.saveLatestProcessMemoryWith({
@@ -348,7 +340,6 @@ export const createApis = async (ctx) => {
      * push a new object to keep references to original data intact
      */
     wasmMemoryCache.data.forEach((value) => {
-      console.log('xyz', { value })
       return pArgs.push({ Memory: value.Memory, File: value.File, evaluation: value.evaluation })
     })
 
